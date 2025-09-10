@@ -1,0 +1,863 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SqueezyCat - Image Optimizer</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a78bfa' stroke-linecap='round' stroke-linejoin='round' stroke-width='2'%3E%3Cpath d='M12 5c.67 0 1.35.09 2 .26c1.78-2 5.03-2.84 6.42-2.26c1.4.58-.42 7-.42 7c.57 1.07 1 2.24 1 3.44C21 17.9 16.97 21 12 21s-9-3-9-7.56c0-1.25.5-2.4 1-3.44c0 0-1.89-6.42-.5-7c1.39-.58 4.72.23 6.5 2.23A9.04 9.04 0 0 1 12 5Zm-4 9v.5m8-.5v.5'/%3E%3Cpath d='M11.25 16.25h1.5L12 17l-.75-.75Z'/%3E%3C/svg%3E">
+    <!-- Updated Tailwind script to include the 'typography' plugin for styling the legal text -->
+    <script src="https://cdn.tailwindcss.com?plugins=typography"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        :root {
+            --bg-color: #1A1826;
+            --panel-color: rgba(30, 28, 46, 0.7);
+            --control-bg: rgba(17, 16, 21, 0.6);
+            --control-active-bg: rgba(255, 255, 255, 0.15);
+            --border-color: rgba(255, 255, 255, 0.1);
+            --text-primary: #F3F4F6;
+            --text-secondary: #A1A1AA;
+            --accent-purple: #a78bfa;
+            --accent-purple-light: #c4b5fd;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            color: var(--text-primary);
+            background-color: var(--bg-color);
+            overflow-x: hidden;
+        }
+
+        /* --- Custom Scrollbar --- */
+        #file-list::-webkit-scrollbar,
+        .legal-modal-content::-webkit-scrollbar { width: 8px; }
+        #file-list::-webkit-scrollbar-track,
+        .legal-modal-content::-webkit-scrollbar-track { background: rgba(0,0,0,0.2); border-radius: 4px; }
+        #file-list::-webkit-scrollbar-thumb,
+        .legal-modal-content::-webkit-scrollbar-thumb { background: var(--accent-purple); border-radius: 4px; border: 2px solid transparent; background-clip: content-box; }
+        #file-list::-webkit-scrollbar-thumb:hover,
+        .legal-modal-content::-webkit-scrollbar-thumb:hover { background-color: var(--accent-purple-light); }
+
+        /* --- Hide Number Input Spinners --- */
+        input::-webkit-outer-spin-button, input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+        input[type=number] { -moz-appearance: textfield; }
+
+        /* --- Animated Aurora Background --- */
+        .aurora-background { position: fixed; top: 0; left: 0; width: 100vw; height: 100vh; z-index: -1; overflow: hidden; filter: brightness(0.9); }
+        .aurora-shape { position: absolute; border-radius: 100%; filter: blur(120px); opacity: 0.4; }
+        .aurora-shape1 { width: 500px; height: 400px; background: #c084fc; top: -150px; left: -100px; animation: move-aurora1 12s infinite alternate ease-in-out; }
+        .aurora-shape2 { width: 400px; height: 450px; background: #7dd3fc; bottom: -200px; right: -150px; animation: move-aurora2 14s infinite alternate ease-in-out; }
+        .aurora-shape3 { width: 300px; height: 300px; background: #f9a8d4; bottom: 50px; left: 100px; animation: move-aurora3 10s infinite alternate ease-in-out; }
+        .aurora-shape4 { width: 350px; height: 300px; background: #6ee7b7; top: 100px; right: 200px; animation: move-aurora4 15s infinite alternate ease-in-out; }
+        @keyframes move-aurora1 { from { transform: translate(-100px, -50px) rotate(0deg); } to { transform: translate(100px, 80px) rotate(45deg); } }
+        @keyframes move-aurora2 { from { transform: translate(50px, 100px) rotate(0deg); } to { transform: translate(-150px, -100px) rotate(60deg); } }
+        @keyframes move-aurora3 { from { transform: translate(-80px, 40px) rotate(0deg); } to { transform: translate(80px, -40px) rotate(-50deg); } }
+        @keyframes move-aurora4 { from { transform: translate(100px, -100px) rotate(0deg); } to { transform: translate(-50px, 50px) rotate(70deg); } }
+
+        /* --- Glassmorphism Card --- */
+        .glass-card { background: var(--panel-color); -webkit-backdrop-filter: blur(40px); backdrop-filter: blur(40px); border: 1px solid var(--border-color); box-shadow: 0 12px 40px 0 rgba(0, 0, 0, 0.4); }
+
+        /* --- Custom Controls --- */
+        .segmented-control { display: flex; background-color: var(--control-bg); padding: 4px; border-radius: 0.75rem; width: 100%; }
+        .segmented-control button { flex: 1; padding: 6px 0; border-radius: 0.5rem; font-size: 0.875rem; font-weight: 500; color: var(--text-secondary); border: none; background: transparent; cursor: pointer; transition: all 0.2s ease-in-out; }
+        .segmented-control button.active { background-color: var(--control-active-bg); color: var(--text-primary); box-shadow: 0 1px 3px rgba(0,0,0,0.2); }
+        input[type="range"] { -webkit-appearance: none; appearance: none; background: transparent; cursor: pointer; width: 100%; }
+        input[type="range"]::-webkit-slider-runnable-track { background: var(--control-bg); height: 6px; border-radius: 3px; }
+        input[type="range"]::-moz-range-track { background: var(--control-bg); height: 6px; border-radius: 3px; }
+        input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; appearance: none; margin-top: -7px; height: 20px; width: 20px; background-color: #fff; border-radius: 50%; border: none; box-shadow: 0 2px 5px rgba(0,0,0,0.5); transition: transform 0.2s ease; }
+        input[type="range"]::-webkit-slider-thumb:hover { transform: scale(1.1); }
+        input[type="range"]::-moz-range-thumb { height: 20px; width: 20px; background-color: #fff; border-radius: 50%; border: none; box-shadow: 0 2px 5px rgba(0,0,0,0.5); transition: transform 0.2s ease; }
+        input[type="range"]::-moz-range-thumb:hover { transform: scale(1.1); }
+        .action-btn { display: inline-flex; align-items: center; justify-content: center; padding: 0.75rem 1rem; font-weight: 600; color: var(--text-primary); background: rgba(255, 255, 255, 0.1); border: 1px solid rgba(255, 255, 255, 0.15); border-radius: 0.75rem; transition: all 0.2s ease-in-out; }
+        .action-btn.primary { background: var(--accent-purple); border-color: transparent; color: #111; }
+        .action-btn:hover:not(:disabled) { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(0,0,0,0.2); }
+        .action-btn.primary:hover:not(:disabled) { background: var(--accent-purple-light); }
+        .action-btn:disabled { opacity: 0.4; cursor: not-allowed; }
+
+        /* --- File Drop Zone Highlight --- */
+        .drag-over { border-color: var(--accent-purple); background-color: rgba(167, 139, 250, 0.1); }
+
+        /* --- Dynamic Uploader Resizing (Desktop) --- */
+        @media (min-width: 768px) {
+            #drop-zone, #queue-wrapper {
+                transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            #upload-panel.has-files #drop-zone {
+                flex-grow: 0;
+                min-height: 8rem; /* 128px */
+            }
+            #upload-panel.has-files #drop-zone > svg { width: 2rem; height: 2rem; margin-bottom: 0.5rem; }
+            #upload-panel.has-files #drop-zone > p:first-of-type { font-size: 1rem; }
+            #upload-panel.has-files #drop-zone > button,
+            #upload-panel.has-files #drop-zone > p:nth-of-type(2) { display: none; }
+        }
+
+        /* --- Paw Easter Egg --- */
+        @keyframes paw-wiggle { 0%, 100% { transform: rotate(0deg); } 25% { transform: rotate(-10deg); } 75% { transform: rotate(10deg); } }
+        .paw-wiggle-animation { animation: paw-wiggle 0.5s ease-in-out; }
+
+        /* Target size button style */
+        .target-size-btn {
+            background-color: var(--control-bg);
+            border: 1px solid transparent;
+            transition: all 0.2s ease-in-out;
+        }
+        .target-size-btn.active {
+            background-color: var(--control-active-bg);
+            border-color: var(--accent-purple);
+            color: var(--text-primary);
+        }
+    </style>
+</head>
+<body class="text-gray-200">
+
+    <div class="aurora-background">
+        <div class="aurora-shape aurora-shape1"></div>
+        <div class="aurora-shape aurora-shape2"></div>
+        <div class="aurora-shape aurora-shape3"></div>
+        <div class="aurora-shape aurora-shape4"></div>
+    </div>
+
+    <!-- Main Container -->
+    <main class="min-h-screen w-full flex justify-center items-start md:items-center p-4">
+        <div class="w-full max-w-7xl h-auto md:h-[90vh] md:max-h-[900px] glass-card rounded-3xl flex flex-col overflow-hidden">
+
+            <!-- Custom Title Bar -->
+            <header class="flex-shrink-0 h-14 flex items-center justify-between px-4 border-b border-white/10 relative">
+                <div class="flex items-center gap-2">
+                    <span class="w-3 h-3 bg-red-500 rounded-full"></span>
+                    <span class="w-3 h-3 bg-yellow-500 rounded-full"></span>
+                    <span class="w-3 h-3 bg-green-500 rounded-full"></span>
+                </div>
+                <div class="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 flex items-center justify-center gap-2 pointer-events-none">
+                    <svg class="w-6 h-6 text-purple-300" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2">
+                        <path d="M12 5c.67 0 1.35.09 2 .26c1.78-2 5.03-2.84 6.42-2.26c1.4.58-.42 7-.42 7c.57 1.07 1 2.24 1 3.44C21 17.9 16.97 21 12 21s-9-3-9-7.56c0-1.25.5-2.4 1-3.44c0 0-1.89-6.42-.5-7c1.39-.58 4.72.23 6.5 2.23A9.04 9.04 0 0 1 12 5Zm-4 9v.5m8-.5v.5"/><path d="M11.25 16.25h1.5L12 17l-.75-.75Z"/>
+                    </svg>
+                    <h1 class="text-sm font-semibold text-white">SqueezyCat</h1>
+                </div>
+                <div class="w-16 hidden sm:block"></div>
+            </header>
+
+            <!-- Main Content Area -->
+            <div class="flex-grow flex flex-col md:flex-row md:min-h-0">
+            
+                <!-- UPLOAD & QUEUE PANEL -->
+                <main id="upload-panel" class="flex-1 flex flex-col p-4 sm:p-6 min-h-0 order-1 md:order-2">
+                    <div id="drop-zone" class="relative flex-grow min-h-[200px] border-2 border-dashed border-white/20 rounded-2xl flex flex-col justify-center items-center text-center transition-all duration-300 p-4">
+                        <svg class="w-12 h-12 sm:w-16 sm:h-16 text-white/30 mb-4 transition-all" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><g fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"><path d="m16 16l-4-4l-4 4m4-4v9"/><path d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"/><path d="m16 16l-4-4l-4 4"/></g></svg>
+                        <p class="text-md sm:text-lg font-semibold text-gray-300 transition-all">Drop your images here</p>
+                        <p class="text-xs sm:text-sm text-gray-500 mt-1 mb-3">or</p>
+                        <button id="select-files-btn" class="bg-white/10 hover:bg-white/20 text-white font-semibold py-2 px-5 rounded-xl transition-all text-sm">Select Files</button>
+                        <input type="file" id="file-input" class="hidden" multiple accept="image/jpeg,image/png,image/webp,image/gif,image/bmp">
+                    </div>
+                    
+                    <div id="queue-wrapper" class="flex-1 pt-6 flex flex-col min-h-0">
+                        <div class="flex justify-between items-center mb-3 flex-shrink-0">
+                            <h3 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Image Queue</h3>
+                            <button id="clear-all-btn" class="p-1.5 rounded-lg text-gray-500 hover:bg-red-500/20 hover:text-red-300 transition-colors disabled:opacity-50 disabled:pointer-events-none" disabled title="Clear All">
+                                <svg class="w-4 h-4" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd" /></svg>
+                            </button>
+                        </div>
+
+                        <div id="file-list" class="flex-1 overflow-y-auto space-y-2 pr-2 -mr-2">
+                             <div id="placeholder" class="text-center text-gray-500 pt-8 text-sm">
+                                <p>Your optimized images will appear here.</p>
+                            </div>
+                        </div>
+                        
+                        <div class="pt-4 mt-auto grid grid-cols-1 sm:grid-cols-2 gap-4 flex-shrink-0">
+                            <button id="squeeze-btn" class="action-btn primary" disabled>
+                                <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="m15 15l6 6m-6-6v4.8m0-4.8h4.8M9 19.8V15m0 0H4.2M9 15l-6 6M15 4.2V9m0 0h4.8M15 9l6-6M9 4.2V9m0 0H4.2M9 9L3 3"/></svg>
+                                Compress Images
+                            </button>
+                            <button id="download-all-btn" class="action-btn" disabled>
+                                <svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path fill-rule="evenodd" d="M3 17a1 1 0 011-1h12a1 1 0 110 2H4a1 1 0 01-1-1zm3.293-7.707a1 1 0 011.414 0L9 10.586V3a1 1 0 112 0v7.586l1.293-1.293a1 1 0 111.414 1.414l-3 3a1 1 0 01-1.414 0l-3-3a1 1 0 010-1.414z" clip-rule="evenodd" /></svg>
+                                Download All
+                            </button>
+                        </div>
+                    </div>
+                </main>
+
+                 <!-- CONTROLS PANEL -->
+                <aside class="w-full md:w-[320px] flex-shrink-0 flex flex-col p-4 sm:p-6 border-t md:border-t-0 md:border-r border-white/10 md:overflow-y-auto order-2 md:order-1">
+                    
+                    <!-- Main controls wrapper -->
+                    <div>
+                        <div class="space-y-4 md:space-y-6">
+                            <div>
+                                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Mode</h2>
+                                <div class="segmented-control">
+                                    <button data-mode="manual" id="mode-manual-btn" class="mode-btn active">Manual</button>
+                                    <button data-mode="target" id="mode-target-btn" class="mode-btn">Target Size</button>
+                                </div>
+                            </div>
+
+                            <div id="manual-controls" class="space-y-4 md:space-y-6">
+                                <div>
+                                    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Presets</h2>
+                                    <div class="segmented-control">
+                                        <button data-preset="web" class="preset-btn">Web</button>
+                                        <button data-preset="email" class="preset-btn">Email</button>
+                                        <button data-preset="print" class="preset-btn">Print</button>
+                                        <button data-preset="custom" class="preset-btn active">Custom</button>
+                                    </div>
+                                </div>
+                                
+                                <div id="quality-control">
+                                    <div class="flex justify-between items-center mb-2">
+                                        <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider">Quality</h2>
+                                        <span id="qualityValue" class="text-sm font-medium">75%</span>
+                                    </div>
+                                    <input type="range" id="qualitySlider" min="1" max="100" value="75">
+                                </div>
+
+                                <div>
+                                    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Scale</h2>
+                                    <div id="scale-control" class="segmented-control">
+                                        <button data-scale="1" class="scale-btn active">100%</button>
+                                        <button data-scale="0.75" class="scale-btn">75%</button>
+                                        <button data-scale="0.5" class="scale-btn">50%</button>
+                                        <button data-scale="0.25" class="scale-btn">25%</button>
+                                    </div>
+                                </div>
+
+                                <div>
+                                    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Max Dimensions</h2>
+                                    <div class="flex gap-4">
+                                        <input type="number" id="maxWidth" placeholder="Width" class="w-full bg-black/30 border border-transparent hover:border-white/10 focus:border-purple-400 focus:ring-purple-400 focus:ring-1 rounded-lg py-1.5 px-2 text-sm transition" min="10">
+                                        <input type="number" id="maxHeight" placeholder="Height" class="w-full bg-black/30 border border-transparent hover:border-white/10 focus:border-purple-400 focus:ring-purple-400 focus:ring-1 rounded-lg py-1.5 px-2 text-sm transition" min="10">
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <div id="target-controls" class="hidden space-y-4 md:space-y-6">
+                                <div>
+                                    <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">Target File Size</h2>
+                                    <div class="grid grid-cols-4 gap-2">
+                                        <button class="target-size-btn text-xs py-2 rounded-lg" data-size-kb="100">100 KB</button>
+                                        <button class="target-size-btn text-xs py-2 rounded-lg" data-size-kb="500">500 KB</button>
+                                        <button class="target-size-btn text-xs py-2 rounded-lg" data-size-kb="1024">1 MB</button>
+                                        <button class="target-size-btn text-xs py-2 rounded-lg" data-size-kb="2048">2 MB</button>
+                                    </div>
+                                    <div class="flex gap-2 mt-3">
+                                        <input type="number" id="custom-size-input" placeholder="e.g., 250" class="w-full bg-black/30 border border-transparent hover:border-white/10 focus:border-purple-400 focus:ring-purple-400 focus:ring-1 rounded-lg py-1.5 px-2 text-sm transition" min="1">
+                                        <select id="custom-size-unit" class="bg-black/30 border border-transparent hover:border-white/10 focus:border-purple-400 focus:ring-purple-400 focus:ring-1 rounded-lg py-1.5 px-2 text-sm transition">
+                                            <option value="KB">KB</option>
+                                            <option value="MB">MB</option>
+                                        </select>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="space-y-4 md:space-y-6">
+                                <h2 class="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2 pt-2 border-t border-white/10">Output Format</h2>
+                                <div id="format-control" class="segmented-control">
+                                    <button data-format="webp" class="format-btn">WebP</button>
+                                    <button data-format="jpeg" class="format-btn active">JPEG</button>
+                                    <button data-format="png" class="format-btn">PNG</button>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Footer and Paw wrapper -->
+                    <div class="mt-auto">
+                        <div class="text-center pt-4 mb-6">
+                             <div id="total-savings-message" class="text-purple-300 font-semibold hidden mb-4">
+                                <p>Total Savings: <span id="total-savings">0 KB</span></p>
+                                <p class="text-xs text-gray-400">Optimization Complete!</p>
+                            </div>
+                            <svg id="paw-mascot" class="mx-auto h-12 w-12 text-white/20 hover:text-white/40 cursor-pointer transition-colors" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 56 56" fill="currentColor"><path fill-rule="evenodd" d="M16.881 50.83c-.202-.014-.404-.025-.605-.043c-1.13-.106-2.167-.475-3.087-1.14c-1.587-1.15-2.602-2.679-3.006-4.602a8.149 8.149 0 0 1-.147-2.188a9.757 9.757 0 0 1 .498-2.521c.439-1.308 1.1-2.495 1.937-3.589A14.948 14.948 0 0 1 14.6 34.5a18.334 18.334 0 0 0 2.031-2.077c.788-.935 1.5-1.926 2.205-2.924c.622-.882 1.234-1.77 1.894-2.622a16.959 16.959 0 0 1 1.605-1.83c.73-.707 1.536-1.305 2.486-1.694a6.161 6.161 0 0 1 2.224-.462a9.855 9.855 0 0 1 2.579.273a7.418 7.418 0 0 1 3.387 1.867c.662.63 1.222 1.344 1.742 2.09c.553.792 1.06 1.613 1.583 2.424c.59.913 1.2 1.812 1.88 2.662a18.325 18.325 0 0 0 2.242 2.344a15.79 15.79 0 0 1 2.611 2.909a12.18 12.18 0 0 1 1.518 2.979a9.4 9.4 0 0 1 .504 2.556c.07 1.332-.16 2.606-.765 3.804c-.56 1.11-1.37 2.003-2.386 2.71c-.748.521-1.555.917-2.443 1.137a6.49 6.49 0 0 1-.957.167c-.045.004-.088.012-.132.02c-.042.023-.088.005-.133.01c-.037.006-.075-.01-.11.012h-.828c-.033-.023-.07-.007-.105-.011h-.175c-.706-.023-1.391-.17-2.075-.329c-1.157-.27-2.292-.625-3.444-.918a21.385 21.385 0 0 0-2.83-.538a13.409 13.409 0 0 0-1.992-.062c-.53.018-1.058.1-1.58.197c-1.03.194-2.039.47-3.049.746c-1.068.294-2.136.585-3.23.764c-.445.072-.89.134-1.343.13c-.093-.002-.185.012-.279.01c-.12-.007-.237.014-.355-.013m20.41-45.81c1.488.179 2.626.936 3.495 2.129c.595.818.97 1.736 1.202 2.717a9.8 9.8 0 0 1 .245 2.57a11.205 11.205 0 0 1-1.12 4.546a9.43 9.43 0 0 1-1.886 2.668c-.703.688-1.498 1.238-2.426 1.581c-.652.24-1.322.36-2.016.318c-1.202-.069-2.223-.547-3.08-1.381c-.732-.712-1.23-1.574-1.575-2.527a8.93 8.93 0 0 1-.47-2.057a9.994 9.994 0 0 1-.06-1.446c.035-1.138.24-2.246.61-3.322a10.273 10.273 0 0 1 1.709-3.147c.64-.794 1.387-1.466 2.283-1.962a5.63 5.63 0 0 1 2.112-.686c.023-.013.048-.007.071-.009h.071c.035-.004.071.012.102-.012h.488c.031.025.067.008.101.012h.072c.023 0 .048-.005.072.008M3.045 22.6c.023-.454.105-.9.224-1.339c.232-.853.61-1.63 1.2-2.295a4.33 4.33 0 0 1 2.448-1.418c.792-.156 1.574-.09 2.342.148c.884.272 1.665.736 2.36 1.34c1.078.935 1.852 2.086 2.387 3.402a8.815 8.815 0 0 1 .666 3.218a7.539 7.539 0 0 1-.226 2.023c-.227.885-.609 1.69-1.217 2.38a4.322 4.322 0 0 1-2.612 1.453c-.766.124-1.519.04-2.255-.198c-.99-.321-1.84-.873-2.588-1.588a8.66 8.66 0 0 1-1.76-2.402a9.25 9.25 0 0 1-.896-2.787c-.025-.173-.046-.346-.07-.518c-.018-.079-.01-.16-.03-.238c-.009-.033-.004-.064-.005-.098c-.006-.041.013-.086-.013-.127v-.634c.04-.058.02-.122.024-.184c.004-.046-.008-.095.021-.137m10.453-10.158c.005-1.258.184-2.391.605-3.483c.317-.825.753-1.579 1.36-2.228c.653-.702 1.429-1.204 2.365-1.441c.936-.238 1.856-.17 2.76.157c.797.29 1.492.745 2.11 1.32c.985.916 1.69 2.023 2.193 3.264c.32.788.54 1.604.665 2.445c.071.476.112.957.122 1.44a9.947 9.947 0 0 1-.128 1.817c-.209 1.256-.635 2.426-1.395 3.46a5.32 5.32 0 0 1-1.751 1.555a4.47 4.47 0 0 1-2.522.536c-.806-.061-1.55-.325-2.243-.736c-.904-.535-1.636-1.257-2.246-2.107a10.024 10.024 0 0 1-1.534-3.325a11.078 11.078 0 0 1-.332-2a6.138 6.138 0 0 1-.029-.674m39.5 10.895v.146c-.055 1.213-.38 2.354-.903 3.442a9.148 9.148 0 0 1-1.59 2.319c-.835.885-1.804 1.576-2.957 1.99a5.366 5.366 0 0 1-2.137.33a4.4 4.4 0 0 1-2.829-1.194c-.658-.612-1.091-1.364-1.365-2.21a6.832 6.832 0 0 1-.32-2.338c.054-1.752.607-3.344 1.567-4.801a8.613 8.613 0 0 1 1.112-1.366c.857-.854 1.837-1.51 2.998-1.883a5.277 5.277 0 0 1 2.025-.252a4.39 4.39 0 0 1 2.749 1.21c.696.657 1.136 1.468 1.401 2.38c.147.503.233 1.018.25 1.543v.147a9.116 9.116 0 0 0 0 .537"/></svg>
+                        </div>
+    
+                        <footer class="text-center text-xs text-gray-500 pt-4 border-t border-white/10">
+                            <p>&copy; 2024 Ardan Ridho. All Rights Reserved.</p>
+                            <div class="mt-2 space-x-3">
+                                <a href="#" id="open-terms-link" class="hover:text-gray-300 transition-colors">Terms of Service</a>
+                                <span class="text-gray-600">|</span>
+                                <a href="#" id="open-privacy-link" class="hover:text-gray-300 transition-colors">Privacy Policy</a>
+                            </div>
+                        </footer>
+                    </div>
+                </aside>
+
+            </div>
+        </div>
+    </main>
+
+    <!-- Legal Modal -->
+    <div id="legal-modal" class="hidden fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 transition-opacity duration-300">
+        <div class="w-full max-w-2xl glass-card rounded-2xl flex flex-col overflow-hidden max-h-[80vh]">
+            <!-- Header -->
+            <header class="flex-shrink-0 h-14 flex items-center justify-between px-6 border-b border-white/10">
+                <h2 id="legal-modal-title" class="text-lg font-semibold text-white">Legal Information</h2>
+                <button id="close-legal-modal-btn" class="p-2 rounded-full text-gray-400 hover:text-white hover:bg-white/10 transition-colors">
+                    <svg class="w-5 h-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor"><path d="M6.28 5.22a.75.75 0 00-1.06 1.06L8.94 10l-3.72 3.72a.75.75 0 101.06 1.06L10 11.06l3.72 3.72a.75.75 0 101.06-1.06L11.06 10l3.72-3.72a.75.75 0 00-1.06-1.06L10 8.94 6.28 5.22z" /></svg>
+                </button>
+            </header>
+            <!-- Content -->
+            <div class="flex-grow p-6 pt-2 overflow-y-auto legal-modal-content">
+                <!-- Tabs -->
+                <div class="border-b border-white/10 mb-6 sticky top-0 bg-[color:var(--panel-color)] bg-opacity-80 backdrop-blur-sm">
+                    <nav class="-mb-px flex space-x-6" aria-label="Tabs">
+                        <button id="tab-privacy" class="legal-tab whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Privacy Policy</button>
+                        <button id="tab-terms" class="legal-tab whitespace-nowrap py-3 px-1 border-b-2 font-medium text-sm">Terms of Service</button>
+                    </nav>
+                </div>
+                <!-- Tab Content -->
+                <div class="prose prose-sm prose-invert max-w-none text-gray-300">
+                    <div id="content-privacy">
+                        <p class="text-xs text-gray-400">Last updated: September 10, 2025</p>
+                        <p>Welcome to SqueezyCat. Your privacy is critically important to us. This application is designed with privacy as a core feature.</p>
+                        <h4 class="font-semibold text-white">The Golden Rule: Your Files Never Leave Your Computer</h4>
+                        <p>All image processing, compression, and resizing performed by SqueezyCat happens entirely within your web browser on your own device. Your images are <strong>never</strong> uploaded to our servers or any third-party servers. We have no access to your files.</p>
+                        <h4 class="font-semibold text-white">Data We Don't Collect</h4>
+                        <p>We do not collect, store, or transmit any personal data. This includes:</p>
+                        <ul>
+                            <li>Your images or any data derived from them.</li>
+                            <li>Your name, email address, or any other personal identifiers.</li>
+                            <li>Your IP address or any usage analytics.</li>
+                        </ul>
+                        <h4 class="font-semibold text-white">Third-Party Services</h4>
+                        <p>SqueezyCat utilizes content delivery networks (CDNs) to load necessary libraries for its functionality, such as Google Fonts, Tailwind CSS, and JSZip. These services may have their own privacy policies, but they do not receive any of your personal data or image files from our application.</p>
+                        <h4 class="font-semibold text-white">Changes to This Policy</h4>
+                        <p>We may update this Privacy Policy from time to time. We will notify you of any changes by posting the new Privacy Policy on this page. You are advised to review this Privacy Policy periodically for any changes.</p>
+                    </div>
+                    <div id="content-terms" class="hidden">
+                        <p class="text-xs text-gray-400">Last updated: September 10, 2025</p>
+                        <p>By accessing or using SqueezyCat ("the Service"), you agree to be bound by these Terms of Service ("Terms").</p>
+                        <h4 class="font-semibold text-white">1. Use of the Service</h4>
+                        <p>SqueezyCat provides an in-browser image optimization tool. You agree to use the Service only for lawful purposes. You are solely responsible for the content you process through the Service.</p>
+                        <h4 class="font-semibold text-white">2. No Warranty</h4>
+                        <p>The Service is provided on an "AS IS" and "AS AVAILABLE" basis. SqueezyCat is provided without warranties of any kind, whether express or implied, including, but not limited to, implied warranties of merchantability, fitness for a particular purpose, or non-infringement. We do not guarantee that the service will be error-free or that the results of the optimization will meet your requirements.</p>
+                        <h4 class="font-semibold text-white">3. Limitation of Liability</h4>
+                        <p>In no event shall Ardan Ridho or SqueezyCat be liable for any indirect, incidental, special, consequential or punitive damages, including without limitation, loss of profits, data, use, goodwill, or other intangible losses, resulting from your access to or use of or inability to access or use the Service.</p>
+                        <h4 class="font-semibold text-white">4. Intellectual Property</h4>
+                        <p>The Service and its original content, features, and functionality are and will remain the exclusive property of Ardan Ridho. You do not acquire any ownership rights to the application itself.</p>
+                        <h4 class="font-semibold text-white">5. Changes to Terms</h4>
+                        <p>We reserve the right, at our sole discretion, to modify or replace these Terms at any time. What constitutes a material change will be determined at our sole discretion.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // --- SqueezyCat App Logic ---
+        const uploadPanel = document.getElementById('upload-panel');
+        const dropZone = document.getElementById('drop-zone');
+        const selectFilesBtn = document.getElementById('select-files-btn');
+        const fileInput = document.getElementById('file-input');
+        const fileList = document.getElementById('file-list');
+        const placeholder = document.getElementById('placeholder');
+        
+        // Mode Controls
+        const modeBtns = document.querySelectorAll('.mode-btn');
+        const manualControls = document.getElementById('manual-controls');
+        const targetControls = document.getElementById('target-controls');
+
+        // Manual Controls
+        const presetBtns = document.querySelectorAll('.preset-btn');
+        const formatBtns = document.querySelectorAll('.format-btn');
+        const scaleBtns = document.querySelectorAll('.scale-btn');
+        const qualityControlEl = document.getElementById('quality-control');
+        const qualitySlider = document.getElementById('qualitySlider');
+        const qualityValue = document.getElementById('qualityValue');
+        const maxWidthInput = document.getElementById('maxWidth');
+        const maxHeightInput = document.getElementById('maxHeight');
+
+        // Target Size Controls
+        const targetSizeBtns = document.querySelectorAll('.target-size-btn');
+        const customSizeInput = document.getElementById('custom-size-input');
+        const customSizeUnit = document.getElementById('custom-size-unit');
+        
+        // Action Buttons
+        const squeezeBtn = document.getElementById('squeeze-btn');
+        const downloadAllBtn = document.getElementById('download-all-btn');
+        const clearAllBtn = document.getElementById('clear-all-btn');
+        
+        // Display Elements
+        const totalSavingsMessage = document.getElementById('total-savings-message');
+        const totalSavingsEl = document.getElementById('total-savings');
+        const pawMascot = document.getElementById('paw-mascot');
+
+        // --- State Variables ---
+        let filesToProcess = [];
+        let completedFiles = [];
+        let currentMode = 'manual'; // 'manual' or 'target'
+        let currentScale = 1.0;
+        let currentFormat = 'jpeg';
+        let currentTargetSizeBytes = 0;
+
+        // --- Event Listeners ---
+        pawMascot.addEventListener('click', () => {
+            pawMascot.classList.add('paw-wiggle-animation');
+            setTimeout(() => pawMascot.classList.remove('paw-wiggle-animation'), 500);
+        });
+
+        selectFilesBtn.addEventListener('click', () => fileInput.click());
+        fileInput.addEventListener('change', (e) => handleFiles(e.target.files));
+        
+        dropZone.addEventListener('dragover', (e) => { e.preventDefault(); dropZone.classList.add('drag-over'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('drag-over'));
+        dropZone.addEventListener('drop', (e) => { e.preventDefault(); dropZone.classList.remove('drag-over'); handleFiles(e.dataTransfer.files); });
+
+        const debouncedUpdateAllPreviews = debounce(() => updateAllPreviews(), 400);
+
+        // Mode Switcher Logic
+        modeBtns.forEach(btn => btn.addEventListener('click', () => {
+            currentMode = btn.dataset.mode;
+            setActiveButton(modeBtns, btn);
+            if (currentMode === 'manual') {
+                manualControls.classList.remove('hidden');
+                targetControls.classList.add('hidden');
+                currentTargetSizeBytes = 0; // Reset target size
+                setActiveButton(targetSizeBtns, null);
+            } else {
+                manualControls.classList.add('hidden');
+                targetControls.classList.remove('hidden');
+            }
+            debouncedUpdateAllPreviews();
+        }));
+
+        // Manual Controls Logic
+        presetBtns.forEach(btn => btn.addEventListener('click', () => handlePresetChange(btn)));
+        scaleBtns.forEach(btn => btn.addEventListener('click', () => handleScaleChange(btn)));
+        qualitySlider.addEventListener('input', () => { updateQualityDisplay(); debouncedUpdateAllPreviews(); });
+        [maxWidthInput, maxHeightInput].forEach(input => input.addEventListener('input', () => { handleDimensionChange(); debouncedUpdateAllPreviews(); }));
+        
+        // Target Size Controls Logic
+        targetSizeBtns.forEach(btn => btn.addEventListener('click', () => {
+            setActiveButton(targetSizeBtns, btn);
+            customSizeInput.value = '';
+            currentTargetSizeBytes = parseInt(btn.dataset.sizeKb) * 1024;
+            debouncedUpdateAllPreviews();
+        }));
+        [customSizeInput, customSizeUnit].forEach(el => el.addEventListener('input', () => {
+            setActiveButton(targetSizeBtns, null);
+            const size = parseFloat(customSizeInput.value) || 0;
+            const unit = customSizeUnit.value;
+            currentTargetSizeBytes = size * (unit === 'MB' ? 1024 * 1024 : 1024);
+            debouncedUpdateAllPreviews();
+        }));
+
+        // Universal Controls
+        formatBtns.forEach(btn => btn.addEventListener('click', () => handleFormatChange(btn)));
+
+        // --- Control Handlers ---
+        function setActiveButton(buttons, activeButton) {
+            buttons.forEach(b => b.classList.remove('active'));
+            if(activeButton) activeButton.classList.add('active');
+        }
+
+        function handlePresetChange(btn) {
+            setActiveButton(presetBtns, btn);
+            const preset = btn.dataset.preset;
+            if (preset !== 'custom') {
+                const settings = { web: {q: 75, f: 'webp'}, email: {q: 50, f: 'jpeg'}, print: {q: 92, f: 'jpeg'} }[preset];
+                qualitySlider.value = settings.q;
+                handleFormatChange(document.querySelector(`[data-format="${settings.f}"]`));
+                updateQualityDisplay(false);
+            }
+            toggleQualityControl();
+            debouncedUpdateAllPreviews();
+        }
+
+        function handleFormatChange(btn) {
+            setActiveButton(formatBtns, btn);
+            currentFormat = btn.dataset.format;
+            if(currentMode === 'manual') {
+                setActiveButton(presetBtns, document.querySelector('[data-preset="custom"]'));
+                toggleQualityControl();
+            }
+            debouncedUpdateAllPreviews();
+        }
+        
+        function handleScaleChange(btn) {
+            setActiveButton(scaleBtns, btn);
+            currentScale = parseFloat(btn.dataset.scale);
+            maxWidthInput.value = '';
+            maxHeightInput.value = '';
+            setActiveButton(presetBtns, document.querySelector('[data-preset="custom"]'));
+            debouncedUpdateAllPreviews();
+        }
+        
+        function handleDimensionChange() {
+            setActiveButton(presetBtns, document.querySelector('[data-preset="custom"]'));
+            setActiveButton(scaleBtns, null); 
+            currentScale = null;
+        }
+
+        function updateQualityDisplay(setCustom = true) {
+            qualityValue.textContent = `${qualitySlider.value}%`;
+            if (setCustom) setActiveButton(presetBtns, document.querySelector('[data-preset="custom"]'));
+        }
+
+        function toggleQualityControl() {
+            qualityControlEl.style.display = currentFormat === 'png' ? 'none' : 'block';
+        }
+
+        // --- Core Logic ---
+        function handleFiles(files) {
+            placeholder.classList.add('hidden');
+            uploadPanel.classList.add('has-files');
+            Array.from(files).forEach(file => {
+                if (file.type.startsWith('image/')) {
+                    const fileId = `file-${Date.now()}-${Math.random()}`;
+                    const fileObject = { id: fileId, file, originalSize: file.size, image: null };
+                    const reader = new FileReader();
+                    reader.onload = (event) => {
+                        const img = new Image();
+                        img.onload = () => { fileObject.image = img; processPreview(fileObject); };
+                        img.src = event.target.result;
+                    };
+                    reader.readAsDataURL(file);
+                    filesToProcess.push(fileObject);
+                    addFileToListUI(fileObject);
+                }
+            });
+            updateButtons();
+        }
+
+        squeezeBtn.addEventListener('click', async () => {
+            squeezeBtn.disabled = true;
+            squeezeBtn.innerHTML = `<svg class="w-5 h-5 mr-2 animate-spin" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Compressing...`;
+            
+            for (const fileObject of filesToProcess) {
+                const itemEl = document.getElementById(fileObject.id);
+                if(itemEl) {
+                    const statusEl = itemEl.querySelector('.status-text');
+                    statusEl.textContent = 'Compressing...';
+                    statusEl.classList.replace('text-yellow-400', 'text-blue-400');
+                }
+                try {
+                    const result = (currentMode === 'manual') 
+                        ? await compressWithQuality(fileObject) 
+                        : await compressToTargetSize(fileObject);
+
+                    fileObject.processed = true;
+                    fileObject.resultBlob = result.blob;
+                    fileObject.resultName = result.name;
+                    completedFiles.push(fileObject);
+                    updateFileUIOnSuccess(fileObject.id, fileObject.originalSize, result.blob.size);
+                } catch (error) {
+                    console.error("Compression failed:", error);
+                    updateFileUIOnError(fileObject.id, error.message || "Failed");
+                }
+            }
+            filesToProcess = filesToProcess.filter(f => !f.processed);
+            squeezeBtn.innerHTML = `<svg class="w-5 h-5 mr-2" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2"><path d="m15 15l6 6m-6-6v4.8m0-4.8h4.8M9 19.8V15m0 0H4.2M9 15l-6 6M15 4.2V9m0 0h4.8M15 9l6-6M9 4.2V9m0 0H4.2M9 9L3 3"/></svg>Compress Images`;
+            updateButtons();
+            updateTotalSavings();
+        });
+        
+        async function getCanvasBlob(canvas, quality) {
+            const mimeType = `image/${currentFormat}`;
+            return new Promise(resolve => canvas.toBlob(resolve, mimeType, quality));
+        }
+
+        function getResizedCanvas(img) {
+            const canvas = document.createElement('canvas');
+            const ctx = canvas.getContext('2d');
+            let { width, height } = img;
+            
+            const maxWidth = parseInt(maxWidthInput.value);
+            const maxHeight = parseInt(maxHeightInput.value);
+
+            if (currentMode === 'manual' && (maxWidth || maxHeight)) {
+                const targetWidth = maxWidth || Infinity;
+                const targetHeight = maxHeight || Infinity;
+                const ratio = Math.min(targetWidth / width, targetHeight / height, 1);
+                canvas.width = Math.round(width * ratio);
+                canvas.height = Math.round(height * ratio);
+            } else if (currentMode === 'manual' && currentScale) {
+                canvas.width = Math.round(width * currentScale);
+                canvas.height = Math.round(height * currentScale);
+            } else {
+                canvas.width = width;
+                canvas.height = height;
+            }
+            ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+            return canvas;
+        }
+
+        async function compressWithQuality(fileObject, qualityOverride) {
+            const img = fileObject.image;
+            if (!img) throw new Error("Image not loaded");
+
+            const canvas = getResizedCanvas(img);
+            const quality = qualityOverride ?? (parseInt(qualitySlider.value) / 100);
+            
+            const blob = await getCanvasBlob(canvas, quality);
+            if (!blob) throw new Error('Canvas to Blob failed');
+            
+            const baseName = fileObject.file.name.substring(0, fileObject.file.name.lastIndexOf('.'));
+            const name = `${baseName}.${currentFormat}`;
+            return { blob, name };
+        }
+
+        async function compressToTargetSize(fileObject) {
+            if (!fileObject.image) throw new Error("Image not loaded");
+            if (currentTargetSizeBytes <= 0) throw new Error("Invalid target size");
+
+            if (fileObject.originalSize < currentTargetSizeBytes && fileObject.file.type.endsWith(currentFormat)) {
+                return { blob: fileObject.file, name: fileObject.file.name };
+            }
+
+            const canvas = getResizedCanvas(fileObject.image);
+            
+            let minQuality = 0, maxQuality = 1;
+            let bestBlob = null;
+            
+            let maxBlob = await getCanvasBlob(canvas, 1);
+            if (maxBlob.size <= currentTargetSizeBytes) {
+                 return { blob: maxBlob, name: `${fileObject.file.name.split('.')[0]}.${currentFormat}`};
+            }
+            
+            let minBlob = await getCanvasBlob(canvas, 0);
+            if(minBlob.size > currentTargetSizeBytes) {
+                 console.warn(`Could not meet target. Min size is ${formatBytes(minBlob.size)}`);
+                 return { blob: minBlob, name: `${fileObject.file.name.split('.')[0]}.${currentFormat}`};
+            }
+
+            for (let i = 0; i < 7; i++) {
+                const midQuality = minQuality + (maxQuality - minQuality) / 2;
+                const blob = await getCanvasBlob(canvas, midQuality);
+                
+                if (blob.size > currentTargetSizeBytes) {
+                    maxQuality = midQuality;
+                } else {
+                    bestBlob = blob;
+                    minQuality = midQuality;
+                }
+            }
+
+            const baseName = fileObject.file.name.substring(0, fileObject.file.name.lastIndexOf('.'));
+            const name = `${baseName}.${currentFormat}`;
+            return { blob: bestBlob, name };
+        }
+        
+        async function processPreview(fileObject) {
+            const itemEl = document.getElementById(fileObject.id);
+            if (!itemEl || !itemEl.isConnected || !fileObject.image) return;
+            
+            const squeezedInfoEl = itemEl.querySelector('.squeezed-info');
+            const squeezedSizeTextEl = itemEl.querySelector('.squeezed-size-text');
+            squeezedInfoEl.classList.remove('opacity-0');
+
+            if (currentMode === 'manual') {
+                squeezedSizeTextEl.textContent = 'Estimating...';
+                try {
+                    const { blob } = await compressWithQuality(fileObject);
+                    if (itemEl.isConnected) squeezedSizeTextEl.textContent = `~ ${formatBytes(blob.size)}`;
+                } catch (e) {
+                    if (itemEl.isConnected) squeezedInfoEl.classList.add('opacity-0');
+                }
+            } else {
+                if (currentTargetSizeBytes > 0) {
+                    squeezedSizeTextEl.textContent = `< ${formatBytes(currentTargetSizeBytes)}`;
+                } else {
+                    squeezedInfoEl.classList.add('opacity-0');
+                }
+            }
+        }
+
+        function addFileToListUI(fileObject) {
+            const { id, file, originalSize } = fileObject;
+            const fileItem = document.createElement('div');
+            fileItem.id = id;
+            fileItem.className = 'p-2.5 bg-white/5 rounded-xl flex items-center gap-3 transition-opacity opacity-0';
+            fileItem.innerHTML = `
+                <img src="${URL.createObjectURL(file)}" class="w-10 h-10 rounded-lg object-cover flex-shrink-0">
+                <div class="flex-grow min-w-0">
+                    <p class="text-sm font-medium truncate text-white">${file.name}</p>
+                    <div class="size-comparison text-xs text-gray-400 mt-1 flex items-center gap-1.5">
+                        <span class="original-size">${formatBytes(originalSize)}</span>
+                        <div class="squeezed-info opacity-0 transition-opacity duration-300 flex items-center gap-1.5">
+                            <span class="text-purple-400">→</span>
+                            <span class="squeezed-size-text text-purple-400 font-medium"></span>
+                        </div>
+                    </div>
+                </div>
+                <div class="flex-shrink-0 text-right w-24">
+                    <p class="status-text text-xs text-yellow-400 font-medium transition-colors">Waiting</p>
+                    <p class="savings-text text-sm font-semibold text-green-400 opacity-0 transition-opacity duration-300"></p>
+                </div>
+                <button class="remove-btn p-1 text-gray-500 hover:text-red-400" data-id="${id}">
+                    <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            `;
+            fileList.appendChild(fileItem);
+            setTimeout(() => fileItem.classList.remove('opacity-0'), 10);
+        }
+
+        fileList.addEventListener('click', e => {
+            if (e.target.closest('.remove-btn')) {
+                const button = e.target.closest('.remove-btn');
+                const id = button.dataset.id;
+                document.getElementById(id)?.remove();
+                filesToProcess = filesToProcess.filter(f => f.id !== id);
+                completedFiles = completedFiles.filter(f => f.id !== id);
+                updateButtons();
+                if (filesToProcess.length === 0 && completedFiles.length === 0) {
+                     placeholder.classList.remove('hidden');
+                     uploadPanel.classList.remove('has-files');
+                }
+                updateTotalSavings();
+            }
+        });
+
+        function updateAllPreviews() { filesToProcess.forEach(f => { if (f.image) processPreview(f); }); }
+        function debounce(func, delay) { let t; return function(...a) { clearTimeout(t); t = setTimeout(() => func.apply(this, a), delay); }; }
+        
+        function updateButtons() {
+            const hasFiles = filesToProcess.length > 0 || completedFiles.length > 0;
+            squeezeBtn.disabled = filesToProcess.length === 0;
+            downloadAllBtn.disabled = completedFiles.length === 0;
+            clearAllBtn.disabled = !hasFiles;
+        }
+
+        function updateFileUIOnSuccess(id, originalSize, newSize) {
+            const itemEl = document.getElementById(id);
+            if (!itemEl) return;
+            
+            const statusEl = itemEl.querySelector('.status-text');
+            const squeezedSizeTextEl = itemEl.querySelector('.squeezed-size-text');
+            const savingsTextEl = itemEl.querySelector('.savings-text');
+
+            squeezedSizeTextEl.innerHTML = formatBytes(newSize);
+            statusEl.style.display = 'none';
+
+            const reduction = 100 - (newSize / originalSize) * 100;
+            savingsTextEl.textContent = `-${reduction.toFixed(1)}%`;
+            savingsTextEl.classList.remove('opacity-0');
+
+            const removeBtn = itemEl.querySelector('.remove-btn');
+            const downloadLink = document.createElement('a');
+            downloadLink.className = 'download-link p-1 text-gray-400 hover:text-green-400';
+            const file = completedFiles.find(f => f.id === id);
+
+            if(file && file.resultBlob) {
+                downloadLink.href = URL.createObjectURL(file.resultBlob);
+                downloadLink.download = file.resultName;
+                downloadLink.innerHTML = `<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"></path></svg>`;
+                if(removeBtn) removeBtn.replaceWith(downloadLink);
+            }
+        }
+
+        function updateFileUIOnError(id, message) {
+            const itemEl = document.getElementById(id);
+            if (!itemEl) return;
+            const statusEl = itemEl.querySelector('.status-text');
+            statusEl.textContent = message;
+            statusEl.classList.replace('text-blue-400', 'text-red-400');
+            const squeezedInfoEl = itemEl.querySelector('.squeezed-info');
+            if(squeezedInfoEl) squeezedInfoEl.classList.add('opacity-0');
+        }
+
+        function updateTotalSavings() {
+            const totalOriginal = completedFiles.reduce((sum, f) => sum + f.originalSize, 0);
+            const totalNew = completedFiles.reduce((sum, f) => sum + f.resultBlob.size, 0);
+            const savings = totalOriginal - totalNew;
+            if (savings > 0) {
+                totalSavingsMessage.classList.remove('hidden');
+                totalSavingsEl.textContent = formatBytes(savings);
+            } else {
+                totalSavingsMessage.classList.add('hidden');
+            }
+        }
+        
+        downloadAllBtn.addEventListener('click', () => {
+            const zip = new JSZip();
+            completedFiles.forEach(file => zip.file(file.resultName, file.resultBlob));
+            zip.generateAsync({type:"blob"}).then(function(content) {
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(content);
+                link.download = "SqueezyCat_Images.zip";
+                link.click();
+            });
+        });
+
+        clearAllBtn.addEventListener('click', () => {
+            fileList.innerHTML = '';
+            filesToProcess = [];
+            completedFiles = [];
+            placeholder.classList.remove('hidden');
+            uploadPanel.classList.remove('has-files');
+            updateButtons();
+            updateTotalSavings();
+        });
+
+        function formatBytes(bytes, d = 2) {
+            if (bytes === 0) return '0 Bytes';
+            const k = 1024;
+            const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+            const i = Math.floor(Math.log(bytes) / Math.log(k));
+            return parseFloat((bytes / Math.pow(k, i)).toFixed(d)) + ' ' + sizes[i];
+        }
+
+        // --- Legal Modal Logic ---
+        const legalModal = document.getElementById('legal-modal');
+        const openTermsLink = document.getElementById('open-terms-link');
+        const openPrivacyLink = document.getElementById('open-privacy-link');
+        const closeLegalModalBtn = document.getElementById('close-legal-modal-btn');
+        const legalModalTitle = document.getElementById('legal-modal-title');
+
+        const tabPrivacy = document.getElementById('tab-privacy');
+        const tabTerms = document.getElementById('tab-terms');
+        const contentPrivacy = document.getElementById('content-privacy');
+        const contentTerms = document.getElementById('content-terms');
+
+        const setActiveTab = (activeTab) => {
+            const tabs = [tabPrivacy, tabTerms];
+            tabs.forEach(tab => {
+                if (tab === activeTab) {
+                    tab.classList.add('border-purple-400', 'text-purple-300');
+                    tab.classList.remove('border-transparent', 'text-gray-400', 'hover:text-gray-200', 'hover:border-gray-300');
+                } else {
+                    tab.classList.add('border-transparent', 'text-gray-400', 'hover:text-gray-200', 'hover:border-gray-300');
+                    tab.classList.remove('border-purple-400', 'text-purple-300');
+                }
+            });
+        };
+
+        function showPrivacy() {
+            contentPrivacy.classList.remove('hidden');
+            contentTerms.classList.add('hidden');
+            setActiveTab(tabPrivacy);
+            legalModalTitle.textContent = "Privacy Policy";
+        }
+
+        function showTerms() {
+            contentTerms.classList.remove('hidden');
+            contentPrivacy.classList.add('hidden');
+            setActiveTab(tabTerms);
+            legalModalTitle.textContent = "Terms of Service";
+        }
+        
+        function openModal(tab) {
+            legalModal.classList.remove('hidden');
+            if (tab === 'terms') {
+                showTerms();
+            } else {
+                showPrivacy();
+            }
+        }
+
+        function closeModal() {
+            legalModal.classList.add('hidden');
+        }
+
+        openPrivacyLink.addEventListener('click', (e) => { e.preventDefault(); openModal('privacy'); });
+        openTermsLink.addEventListener('click', (e) => { e.preventDefault(); openModal('terms'); });
+        closeLegalModalBtn.addEventListener('click', closeModal);
+        legalModal.addEventListener('click', (e) => { if (e.target === legalModal) closeModal(); });
+        tabPrivacy.addEventListener('click', showPrivacy);
+        tabTerms.addEventListener('click', showTerms);
+
+    </script>
+</body>
+</html>
